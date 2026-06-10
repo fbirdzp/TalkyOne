@@ -3,7 +3,8 @@
 ## 📊 项目状态概览
 
 **当前版本**: v0.1.0  
-**开发状态**: ✅ 基础架构完成  
+**开发状态**: ✅ 基础架构完成 + CI/CD 配置完成  
+**GitHub 仓库**: https://github.com/fbirdzp/TalkyOne  
 **最后更新**: 2026-06-10
 
 ---
@@ -213,6 +214,14 @@
 2. 完成教师注册申请页面
 3. 完成教师列表页和详情页
 
+### 已完成的 Git 操作 ✅
+
+- ✅ main 分支已推送到 GitHub
+- ✅ develop 分支已推送到 GitHub
+- ✅ feature/setup-project 分支已推送到 GitHub
+- ✅ GitHub Actions CI 工作流已触发
+- ✅ 删除不必要的 main-temp 分支
+
 ### 下周任务 (Week 2)
 
 1. 完成课时包发布和管理
@@ -223,12 +232,12 @@
 
 ## 📞 联系方式
 
-- **项目仓库**: (待创建 GitHub 仓库)
+- **项目仓库**: https://github.com/fbirdzp/TalkyOne
 - **开发环境**: http://localhost:3000
 - **测试环境**: (待部署)
 - **生产环境**: https://talkyone.com (待部署)
 
 ---
 
-**最后更新**: 2026-06-10 13:45  
+**最后更新**: 2026-06-10 22:50  
 **更新人**: AI Assistant
