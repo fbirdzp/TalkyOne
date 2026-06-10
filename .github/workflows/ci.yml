@@ -1,0 +1,45 @@
+# GitHub Actions CI Workflow
+# 持续集成：代码检查、测试、构建
+
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+
+      - name: 🎨 Check Prettier formatting
+        run: npm run format:check
+
+      - name: 🔧 Type check
+        run: npm run type-check
+
+      - name: 🧪 Run tests
+        run: npm run test -- --passWithNoTests
+
+      - name: 🏗️ Build project
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}

@@ -1,0 +1,359 @@
+// Prisma Schema for TalkyOne
+// 多品类私教约课平台数据库设计
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 用户模型 ====================
+
+enum UserRole {
+  STUDENT   // 学生
+  TEACHER   // 教师
+  ADMIN     // 管理员
+  SUPER_ADMIN // 超级管理员
+}
+
+enum UserStatus {
+  PENDING   // 待审核
+  ACTIVE    // 活跃
+  INACTIVE  // 停用
+  BANNED    // 封禁
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String?  @unique
+  emailVerified DateTime?
+  phone         String?  @unique
+  phoneVerified Boolean  @default(false)
+  name          String?
+  avatar        String?
+  password      String?   // 加密存储
+  role          UserRole  @default(STUDENT)
+  status        UserStatus @default(PENDING)
+  
+  // 教师特有字段
+  teacherProfile TeacherProfile?
+  
+  // 学生特有字段
+  studentProfile StudentProfile?
+  
+  // 预约和订单
+  bookingsAsStudent Booking[] @relation("BookingStudent")
+  bookingsAsTeacher Booking[] @relation("BookingTeacher")
+  orders          Order[]  @relation("OrderStudent")
+  teacherOrders   Order[]  @relation("OrderTeacher")
+  
+  // 消息
+  sentMessages    Message[] @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageReceiver")
+  
+  // 评价
+  givenReviews   Review[]  @relation("ReviewStudent")
+  receivedReviews Review[]  @relation("ReviewTeacher")
+  
+  // 收藏
+  favorites      Favorite[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([email, phone])
+  @@index([role, status])
+  @@map("users")
+}
+
+// ==================== 教师资料 ====================
+
+enum ApprovalStatus {
+  PENDING   // 待审核
+  APPROVED  // 已通过
+  REJECTED  // 已拒绝
+  NEEDS_INFO // 需要补充信息
+}
+
+model TeacherProfile {
+  id              String        @id @default(cuid())
+  userId          String        @unique
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 基本信息
+  bio             String?       // 个人简介
+  introduction    String?       // 详细介绍
+  videoUrl        String?       // 自我介绍视频
+  
+  // 教学信息
+  subjects        String[]      // 教学科目 ["英语", "法语"]
+  languages       String[]      // 教学语言
+  experience      Int           // 教学经验（年）
+  education       String?       // 学历
+  certifications  String[]      // 证书列表
+  
+  // 审核状态
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvalScore   Int?          // 审核评分
+  approvalComment String?       // 审核意见
+  approvedAt     DateTime?
+  approvedBy     String?        // 审核人 ID
+  
+  // 统计信息
+  totalStudents   Int           @default(0)
+  totalClasses    Int           @default(0)
+  rating          Float         @default(0)
+  ratingCount     Int           @default(0)
+  
+  // 关联
+  lessonPackages  LessonPackage[]
+  availabilities  Availability[]
+  bookings        Booking[]     @relation("BookingTeacher")
+  orders          Order[]       @relation("OrderTeacher")
+  reviews         Review[]      @relation("ReviewTeacher")
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([approvalStatus, rating])
+  @@map("teacher_profiles")
+}
+
+// ==================== 课时包 ====================
+
+enum LessonStatus {
+  DRAFT     // 草稿
+  ACTIVE    // 上架
+  INACTIVE  // 下架
+  DELETED   // 已删除
+}
+
+model LessonPackage {
+  id              String      @id @default(cuid())
+  teacherId       String
+  teacher         TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  title           String      // 课时包名称
+  description     String?     // 描述
+  subject         String      // 科目
+  level           String?     // 难度级别
+  duration        Int         // 单次时长（分钟）
+  totalLessons    Int         // 总课时数
+  price           Int         // 总价（分）
+  currency        String      @default("CNY")
+  
+  status          LessonStatus @default(DRAFT)
+  maxStudents     Int         @default(1)  // 最大学生数
+  suitableFor     String?     // 适合人群
+  
+  // 统计
+  totalSold       Int         @default(0)
+  rating          Float       @default(0)
+  
+  // 关联
+  bookings        Booking[]
+  orders          Order[]
+  reviews         Review[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([teacherId, status])
+  @@index([subject, status])
+  @@map("lesson_packages")
+}
+
+// ==================== 可预约时间 ====================
+
+model Availability {
+  id          String   @id @default(cuid())
+  teacherId   String
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  date        DateTime // 日期
+  startTime   String   // "09:00"
+  endTime     String   // "10:00"
+  isBooked    Boolean  @default(false)
+  
+  // 重复规则（可选）
+  isRecurring Boolean  @default(false)
+  recurringRule String? // RRULE 格式
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([teacherId, date])
+  @@map("availabilities")
+}
+
+// ==================== 预约 ====================
+
+enum BookingStatus {
+  PENDING    // 待确认
+  CONFIRMED  // 已确认
+  COMPLETED  // 已完成
+  CANCELLED  // 已取消
+  NO_SHOW    // 未到场
+}
+
+model Booking {
+  id          String      @id @default(cuid())
+  studentId   String
+  student     User        @relation("BookingStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     TeacherProfile @relation("BookingTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  lessonId    String?
+  lesson      LessonPackage? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  
+  date        DateTime
+  startTime   String
+  endTime     String
+  status      BookingStatus @default(PENDING)
+  
+  // 课程链接（在线授课）
+  meetingUrl  String?
+  
+  // 评价
+  review      Review?
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([studentId, date])
+  @@index([teacherId, date])
+  @@map("bookings")
+}
+
+// ==================== 订单 ====================
+
+enum OrderStatus {
+  PENDING    // 待支付
+  PAID       // 已支付
+  COMPLETED  // 已完成
+  REFUNDED   // 已退款
+  CANCELLED  // 已取消
+}
+
+enum PaymentMethod {
+  ALIPAY
+  WECHAT_PAY
+  PAYPAL
+  BANK_CARD
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  studentId   String
+  student     User        @relation("OrderStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     TeacherProfile @relation("OrderTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      LessonPackage @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  amount      Int         // 金额（分）
+  currency    String      @default("CNY")
+  status      OrderStatus @default(PENDING)
+  paymentMethod PaymentMethod?
+  paymentId   String?     // 第三方支付 ID
+  
+  // 关联预约
+  bookingId   String?     @unique
+  booking     Booking?    @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  
+  paidAt      DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([studentId, status])
+  @@index([teacherId, status])
+  @@map("orders")
+}
+
+// ==================== 评价 ====================
+
+model Review {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     User     @relation("ReviewStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     TeacherProfile @relation("ReviewTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  lessonId    String?
+  lesson      LessonPackage? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  bookingId   String?  @unique
+  booking     Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  
+  rating      Int       // 1-5 星
+  comment     String?   // 评价内容
+  tags        String[]  // 评价标签
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([teacherId, rating])
+  @@map("reviews")
+}
+
+// ==================== 消息 ====================
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+model Message {
+  id          String      @id @default(cuid())
+  senderId    String
+  sender      User        @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User        @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  type        MessageType @default(TEXT)
+  content     String
+  isRead      Boolean     @default(false)
+  
+  createdAt   DateTime    @default(now())
+
+  @@index([senderId, receiverId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// ==================== 收藏 ====================
+
+model Favorite {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+
+  @@unique([studentId, teacherId])
+  @@map("favorites")
+}
+
+// ==================== 学生资料 ====================
+
+model StudentProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 学习目标
+  learningGoals String[]
+  
+  // 统计
+  totalBookings Int    @default(0)
+  totalHours   Int     @default(0)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("student_profiles")
+}

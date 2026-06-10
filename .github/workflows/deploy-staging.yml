@@ -1,0 +1,29 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [release/*]
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+      
+      - name: Build and deploy
+        run: echo "Deploy to staging server"
+        # 这里添加实际的部署脚本

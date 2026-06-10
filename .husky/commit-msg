@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "📝 Checking commit message..."
+
+# 检查 commit message 格式
+npx --no-install commitlint --edit $1
+
+echo "✅ Commit message format is valid!"

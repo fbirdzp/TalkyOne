@@ -1,0 +1,44 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Create Release Tag
+        if: github.event_name == 'release'
+        run: echo "Creating release tag"
+        # 这里添加创建 Git tag 的逻辑
+      
+      - name: Deploy to Production
+        run: echo "Deploy to production server"
+        # 这里添加实际的生产部署脚本
+      
+      - name: Notify Team
+        if: always()
+        run: echo "Send deployment notification"
+        # 这里添加通知逻辑（Slack/Email）
