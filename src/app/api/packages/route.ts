@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     // 构建查询条件
     const where: any = {
-      status: 'active',
+      isActive: true,
     }
 
     if (search) {
@@ -26,7 +26,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (subject) {
-      where.subject = subject
+      where.subjects = {
+        contains: subject,
+      }
     }
 
     // 构建排序条件
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
         orderBy = { price: 'desc' }
         break
       case 'popular':
-        orderBy = { orders: { _count: 'desc' } }
+        orderBy = { bookings: { _count: 'desc' } }
         break
       default:
         orderBy = { createdAt: 'desc' }
@@ -68,7 +70,7 @@ export async function GET(request: NextRequest) {
           },
           _count: {
             select: {
-              orders: true,
+              bookings: true,
             },
           },
         },

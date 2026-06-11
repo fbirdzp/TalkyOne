@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { UserRole, ApprovalStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 
@@ -8,31 +7,57 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl
     const search = searchParams.get('search') || ''
     const subject = searchParams.get('subject') || ''
+    const location = searchParams.get('location') || ''
+    const minPrice = searchParams.get('minPrice') ? parseInt(searchParams.get('minPrice')!) : null
+    const maxPrice = searchParams.get('maxPrice') ? parseInt(searchParams.get('maxPrice')!) : null
+    const minRating = searchParams.get('minRating') ? parseFloat(searchParams.get('minRating')!) : null
     const sortBy = searchParams.get('sortBy') || 'rating'
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '12')
+    const limit = parseInt(searchParams.get('limit') || '20')
     const skip = (page - 1) * limit
 
     // 构建查询条件
     const where: any = {
-      role: UserRole.TEACHER,
-      status: 'ACTIVE',
-      teacherProfile: {
-        isNot: null,
-        approvalStatus: ApprovalStatus.APPROVED,
+      approvalStatus: 'APPROVED',
+      isActive: true,
+      user: {
+        role: 'TEACHER',
       },
     }
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { teacherProfile: { subjects: { has: search } } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+        { subjects: { contains: search } },
+        { title: { contains: search } },
       ]
     }
 
     if (subject) {
-      where.teacherProfile.subjects = {
-        has: subject,
+      where.subjects = {
+        contains: subject,
+      }
+    }
+
+    if (location) {
+      where.location = {
+        contains: location,
+      }
+    }
+
+    if (minPrice !== null || maxPrice !== null) {
+      where.packages = {
+        some: {
+          isActive: true,
+          ...(minPrice !== null && { price: { gte: minPrice } }),
+          ...(maxPrice !== null && { price: { lte: maxPrice } }),
+        },
+      }
+    }
+
+    if (minRating !== null) {
+      where.rating = {
+        gte: minRating,
       }
     }
 
@@ -40,76 +65,112 @@ export async function GET(request: NextRequest) {
     let orderBy: any = {}
     switch (sortBy) {
       case 'rating':
-        orderBy = { teacherProfile: { rating: 'desc' } }
+        orderBy = { rating: 'desc' }
         break
       case 'students':
-        orderBy = { teacherProfile: { totalStudents: 'desc' } }
+        orderBy = { totalStudents: 'desc' }
         break
       case 'price_asc':
-        orderBy = { teacherProfile: { lessonPackages: { some: { price: 'asc' } } } }
+        orderBy = {
+          packages: {
+            _min: {
+              price: 'asc',
+            },
+          },
+        }
         break
       case 'price_desc':
-        orderBy = { teacherProfile: { lessonPackages: { some: { price: 'desc' } } } }
+        orderBy = {
+          packages: {
+            _max: {
+              price: 'desc',
+            },
+          },
+        }
         break
       case 'experience':
-        orderBy = { teacherProfile: { experience: 'desc' } }
+        orderBy = { experience: 'desc' }
+        break
+      case 'classes':
+        orderBy = { totalClasses: 'desc' }
         break
       default:
-        orderBy = { teacherProfile: { rating: 'desc' } }
+        orderBy = { rating: 'desc' }
     }
 
     // 查询教师
-    const teachers = await prisma.user.findMany({
+    const teachers = await prisma.teacher.findMany({
       where,
       orderBy,
       skip,
       take: limit,
-      select: {
-        id: true,
-        name: true,
-        avatar: true,
-        teacherProfile: {
+      include: {
+        user: {
           select: {
-            subjects: true,
-            totalStudents: true,
-            totalClasses: true,
-            rating: true,
-            ratingCount: true,
-            lessonPackages: {
-              select: {
-                id: true,
-                price: true,
-              },
-              take: 1,
-              orderBy: { price: 'asc' },
-            },
+            id: true,
+            name: true,
+            avatar: true,
           },
+        },
+        packages: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            totalHours: true,
+          },
+          orderBy: { price: 'asc' },
         },
       },
     })
 
     // 获取总数
-    const total = await prisma.user.count({ where })
+    const total = await prisma.teacher.count({ where })
+
+    // 获取所有教师总数（用于统计）
+    const totalTeachers = await prisma.teacher.count({
+      where: {
+        approvalStatus: 'APPROVED',
+        isActive: true,
+      },
+    })
 
     return NextResponse.json({
       teachers: teachers.map((t) => ({
         id: t.id,
+        userId: t.userId,
         user: {
-          name: t.name,
-          avatar: t.avatar,
+          id: t.user.id,
+          name: t.user.name,
+          avatar: t.user.avatar,
         },
-        subjects: t.teacherProfile?.subjects || [],
-        totalStudents: t.teacherProfile?.totalStudents || 0,
-        totalClasses: t.teacherProfile?.totalClasses || 0,
-        rating: t.teacherProfile?.rating || 0,
-        ratingCount: t.teacherProfile?.ratingCount || 0,
-        lessonPackages: t.teacherProfile?.lessonPackages || [],
+        title: t.title,
+        subjects: JSON.parse(t.subjects || '[]'),
+        location: t.location,
+        hourlyRate: t.hourlyRate,
+        totalStudents: t.totalStudents,
+        totalClasses: t.totalClasses,
+        rating: t.rating,
+        ratingCount: t.reviewCount,
+        isVerified: t.isVerified,
+        packages: t.packages.map((p) => ({
+          id: p.id,
+          title: p.title,
+          price: p.price,
+          totalHours: p.totalHours,
+        })),
       })),
       totalPages: Math.ceil(total / limit),
       currentPage: page,
+      total: total,
+      totalTeachers,
     })
-  } catch (error) {
-    console.error('Fetch teachers error:', error)
-    return NextResponse.json({ message: '获取教师列表失败' }, { status: 500 })
+  } catch (error: any) {
+    console.error('Fetch teachers error:', error.message, error.stack)
+    return NextResponse.json(
+      { message: '获取教师列表失败', error: error.message },
+      { status: 500 }
+    )
   }
 }

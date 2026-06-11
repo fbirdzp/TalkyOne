@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 
 import { authOptions } from '@/lib/auth'
 
+// 创建预约
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,10 +15,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { packageId, date, timeSlotId, startTime, endTime } = body
+    const { packageId, startTime, endTime, notes } = body
 
     // 验证必填字段
-    if (!packageId || !date || !startTime || !endTime) {
+    if (!packageId || !startTime || !endTime) {
       return NextResponse.json({ error: '缺少必填字段' }, { status: 400 })
     }
 
@@ -31,44 +32,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '课时包不存在' }, { status: 404 })
     }
 
-    if (pkg.status !== 'active') {
+    if (!pkg.isActive) {
       return NextResponse.json({ error: '课时包已下架' }, { status: 400 })
-    }
-
-    // 检查学生是否已有该课时包的订单
-    const existingOrder = await prisma.order.findFirst({
-      where: {
-        studentId: session.user.id,
-        packageId: packageId,
-        status: 'paid',
-      },
-    })
-
-    // 如果没有已支付的订单，需要先创建订单
-    if (!existingOrder) {
-      return NextResponse.json({ error: '请先购买课时包' }, { status: 400 })
-    }
-
-    // 检查学生的课时包剩余课时
-    const completedBookings = await prisma.booking.count({
-      where: {
-        orderId: existingOrder.id,
-        status: 'completed',
-      },
-    })
-
-    if (completedBookings >= pkg.totalHours) {
-      return NextResponse.json({ error: '课时包课时已用完，请购买新的课时包' }, { status: 400 })
     }
 
     // 检查时间冲突
     const existingBooking = await prisma.booking.findFirst({
       where: {
-        studentId: session.user.id,
-        date: new Date(date),
-        startTime,
+        OR: [
+          {
+            studentId: session.user.id,
+            startTime: {
+              gte: new Date(startTime),
+              lt: new Date(endTime),
+            },
+          },
+          {
+            teacherId: pkg.teacherId,
+            startTime: {
+              gte: new Date(startTime),
+              lt: new Date(endTime),
+            },
+          },
+        ],
         status: {
-          in: ['pending', 'confirmed'],
+          in: ['PENDING', 'CONFIRMED'],
         },
       },
     })
@@ -80,14 +68,13 @@ export async function POST(request: NextRequest) {
     // 创建预约
     const booking = await prisma.booking.create({
       data: {
-        date: new Date(date),
-        startTime,
-        endTime,
-        status: 'pending',
+        startTime: new Date(startTime),
+        endTime: new Date(endTime),
+        status: 'PENDING',
+        notes,
         studentId: session.user.id,
         teacherId: pkg.teacherId,
         packageId: pkg.id,
-        orderId: existingOrder.id,
       },
       include: {
         teacher: {
@@ -105,12 +92,13 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(booking, { status: 201 })
-  } catch (error) {
-    console.error('创建预约错误:', error)
+  } catch (error: any) {
+    console.error('创建预约错误:', error.message)
     return NextResponse.json({ error: '创建预约失败' }, { status: 500 })
   }
 }
 
+// 获取预约列表
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -146,7 +134,7 @@ export async function GET(request: NextRequest) {
     const [bookings, totalCount] = await Promise.all([
       prisma.booking.findMany({
         where,
-        orderBy: { date: 'asc' },
+        orderBy: { startTime: 'asc' },
         skip,
         take: limit,
         include: {
@@ -180,8 +168,8 @@ export async function GET(request: NextRequest) {
       totalPages,
       currentPage: page,
     })
-  } catch (error) {
-    console.error('获取预约列表错误:', error)
+  } catch (error: any) {
+    console.error('获取预约列表错误:', error.message)
     return NextResponse.json({ error: '获取预约列表失败' }, { status: 500 })
   }
 }
