@@ -20,6 +20,8 @@ export const metadata: Metadata = {
   ],
 }
 
+import { Header } from '@/components/layout/header'
+
 export default function RootLayout({
   children,
 }: {
@@ -29,7 +31,8 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          {children}
+          <Header />
+          <main>{children}</main>
         </Providers>
       </body>
     </html>
