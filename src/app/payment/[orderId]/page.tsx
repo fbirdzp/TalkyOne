@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
-import Image from 'next/image'
 
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -186,13 +185,8 @@ export default function PaymentPage({ params }: { params: { orderId: string } })
                   >
                     <RadioGroupItem value={PaymentMethod.ALIPAY} id="alipay" />
                     <div className="flex flex-1 items-center space-x-3">
-                      <div className="relative h-12 w-12">
-                        <Image
-                          src="/icons/alipay.png"
-                          alt="支付宝"
-                          fill
-                          className="object-contain"
-                        />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 text-blue-600 font-bold text-sm">
+                        支付宝
                       </div>
                       <div>
                         <p className="font-medium">支付宝</p>
@@ -208,13 +202,8 @@ export default function PaymentPage({ params }: { params: { orderId: string } })
                   >
                     <RadioGroupItem value={PaymentMethod.WECHAT} id="wechat" />
                     <div className="flex flex-1 items-center space-x-3">
-                      <div className="relative h-12 w-12">
-                        <Image
-                          src="/icons/wechat-pay.png"
-                          alt="微信支付"
-                          fill
-                          className="object-contain"
-                        />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 text-green-600 font-bold text-sm">
+                        微信
                       </div>
                       <div>
                         <p className="font-medium">微信支付</p>
@@ -230,13 +219,8 @@ export default function PaymentPage({ params }: { params: { orderId: string } })
                   >
                     <RadioGroupItem value={PaymentMethod.PAYPAL} id="paypal" />
                     <div className="flex flex-1 items-center space-x-3">
-                      <div className="relative h-12 w-12">
-                        <Image
-                          src="/icons/paypal.png"
-                          alt="PayPal"
-                          fill
-                          className="object-contain"
-                        />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 text-blue-800 font-bold text-sm">
+                        PayPal
                       </div>
                       <div>
                         <p className="font-medium">PayPal</p>
