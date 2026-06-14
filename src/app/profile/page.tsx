@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
+import { FileUpload } from '@/components/ui/file-upload'
 import { ArrowLeft, User } from 'lucide-react'
 
 export default function ProfilePage() {
@@ -126,9 +127,18 @@ export default function ProfilePage() {
                     <User className="h-full w-full p-4 text-gray-400" />
                   )}
                 </div>
-                <Button type="button" variant="outline">
-                  上传头像
-                </Button>
+                <div className="flex-1">
+                  <FileUpload
+                    onUpload={(url) => setAvatar(url)}
+                    onRemove={() => setAvatar('')}
+                    accept="image/*"
+                    maxSize={5}
+                    value={avatar}
+                  />
+                  <p className="mt-2 text-sm text-gray-500">
+                    建议上传正方形图片，大小不超过 5MB
+                  </p>
+                </div>
               </div>
 
               {/* 姓名 */}

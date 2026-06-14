@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 
 import { prisma } from '@/lib/prisma'
-
 import { authOptions } from '@/lib/auth'
+import { sendEmail, generateBookingConfirmationEmail } from '@/lib/email'
 
 // 创建预约
 export async function POST(request: NextRequest) {
@@ -82,7 +82,17 @@ export async function POST(request: NextRequest) {
             user: {
               select: {
                 name: true,
-                avatar: true,
+                email: true,
+              },
+            },
+          },
+        },
+        student: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
               },
             },
           },
@@ -90,6 +100,47 @@ export async function POST(request: NextRequest) {
         package: true,
       },
     })
+
+    // 发送预约确认邮件
+    try {
+      const studentEmail = booking.student.user.email
+      const teacherEmail = booking.teacher.user.email
+
+      if (studentEmail) {
+        const emailHtml = generateBookingConfirmationEmail({
+          id: booking.id,
+          studentName: booking.student.user.name || '学生',
+          teacherName: booking.teacher.user.name || '教师',
+          packageTitle: booking.package.title,
+          date: new Date(startTime).toLocaleDateString('zh-CN'),
+          startTime: new Date(startTime).toLocaleTimeString('zh-CN', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          endTime: new Date(endTime).toLocaleTimeString('zh-CN', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          amount: booking.package.price,
+        })
+
+        await sendEmail({
+          to: studentEmail,
+          subject: `课程预约确认 - ${booking.package.title}`,
+          html: emailHtml,
+        })
+        console.log('预约确认邮件已发送给学生:', studentEmail)
+      }
+
+      // 可选：发送通知邮件给教师
+      if (teacherEmail) {
+        // 这里可以发送新预约通知给教师
+        console.log('教师邮箱:', teacherEmail)
+      }
+    } catch (emailError) {
+      console.error('发送邮件失败:', emailError)
+      // 邮件发送失败不影响预约创建
+    }
 
     return NextResponse.json(booking, { status: 201 })
   } catch (error: any) {

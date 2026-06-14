@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { PaymentStatus } from '@/lib/payment/types'
 import { verifyPaymentCallback, capturePayment, queryPaymentStatus } from '@/lib/payment'
+import { sendEmail, generatePaymentSuccessEmail } from '@/lib/email'
 
 // 支付回调处理
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -118,6 +119,39 @@ export async function POST(request: NextRequest) {
         where: { id: payment.orderId },
         data: { status: 'paid' },
       })
+
+      // 发送支付成功邮件
+      try {
+        const order = await prisma.order.findUnique({
+          where: { id: payment.orderId },
+          include: {
+            student: {
+              include: { user: true },
+            },
+            package: true,
+          },
+        })
+
+        if (order?.student.user.email) {
+          const emailHtml = generatePaymentSuccessEmail({
+            id: payment.id,
+            orderId: order.id,
+            amount: payment.amount,
+            method: payment.method,
+            paidAt: new Date(),
+          })
+
+          await sendEmail({
+            to: order.student.user.email,
+            subject: `支付成功 - 订单 ${order.id}`,
+            html: emailHtml,
+          })
+          console.log('支付成功邮件已发送给学生:', order.student.user.email)
+        }
+      } catch (emailError) {
+        console.error('发送支付成功邮件失败:', emailError)
+        // 邮件发送失败不影响支付流程
+      }
     }
 
     return NextResponse.json({ success: true })
